@@ -6,7 +6,7 @@ import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords } f
 // EDIT THESE 4 LINES WITH YOUR DETAILS BEFORE COMMITTING
 // =========================================================
 const CONFIG = {
-  SUPABASE_URL: 'https://YOUR_PROJECT_ID.supabase.co',
+  SUPABASE_URL: 'https://gpgrimeivilfxfwuniku.supabase.co',
   SUPABASE_ANON_KEY: 'YOUR_SUPABASE_ANON_KEY',
   MPESA_NUMBER: '5813215',       // Your Pochi / Till / M-Pesa number
   ADMIN_PASSWORD: 'V3mf54',    // Password to open Host Admin on the site
