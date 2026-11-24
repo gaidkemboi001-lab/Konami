@@ -40,8 +40,7 @@ export default function App() {
 
   const [winnerChoice, setWinnerChoice] = useState('');
   const [customWinnerName, setCustomWinnerName] = useState('');
-
-  const fetchPlayersList = async () => {
+    const fetchPlayersList = async () => {
     const { data } = await supabase.from('players').select('*').order('id', { ascending: false });
     if (data) {
       setAllPlayers(data);
@@ -480,4 +479,34 @@ export default function App() {
               <form onSubmit={handleSignIn} className="space-y-3">
                 <input required type="text" placeholder="Full Name" value={profile.full_name} onChange={(e) => setProfile({ ...profile, full_name: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
                 <input required type="tel" placeholder="M-Pesa Number e.g. 0712345678" value={profile.phone_number} onChange={(e) => setProfile({ ...profile, phone_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
-                <input required type="text" placeholder="Username - eFootball username" value={profile
+                <input required type="text" placeholder="Username - eFootball username" value={profile.efootball_username} onChange={(e) => setProfile({ ...profile, efootball_username: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
+                <input required type="number" placeholder="Account Strength e.g. 3150" value={profile.squad_strength} onChange={(e) => setProfile({ ...profile, squad_strength: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
+
+                <a
+                  href={CONFIG.WHATSAPP_GROUP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold py-2.5 px-3.5 rounded-lg text-sm flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" /> Join eFootball WhatsApp Group
+                </a>
+
+                <button disabled={loading} type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm flex items-center justify-center gap-2">
+                  {loading ? 'Saving...' : 'NEXT'} <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+              {player && (
+                <button type="button" onClick={() => setStep('lobbies')} className="w-full text-xs text-emerald-700 font-semibold underline pt-1">
+                  Continue as {player.efootball_username} →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 'lobbies' && (
+          <>
+            {player && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 flex items-center justify-between text-xs">
+                <span className="flex items-center gap-2">
+                
