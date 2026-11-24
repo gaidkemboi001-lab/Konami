@@ -7,7 +7,7 @@ import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, Ar
 // =========================================================
 const CONFIG = {
   SUPABASE_URL: 'https://gpgrimeivilfxfwuniku.supabase.co',
-  SUPABASE_ANON_KEY: 'Qi9wm6onYZoVHe_vT1k33w_s-EbokgT',
+  SUPABASE_ANON_KEY: 'sb_publishable_Qi9wm6onYZoVHe_vT1k33w_s-EbokgT',
   MPESA_NUMBER: '5813215',
   ADMIN_PASSWORD: 'V3mf54',
 };
