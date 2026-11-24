@@ -2,12 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, ArrowRight, UserCheck } from 'lucide-react';
 
-// =========================================================
-// CHECK YOUR SUPABASE ANON / PUBLISHABLE KEY BELOW
-// =========================================================
 const CONFIG = {
   SUPABASE_URL: 'https://gpgrimeivilfxfwuniku.supabase.co',
-  SUPABASE_ANON_KEY: 'sb_publishable_Qi9wm6onYZoVHe_vT1k33w_s-EbokgT',
+  SUPABASE_ANON_KEY: 'PASTE_YOUR_REAL_SUPABASE_ANON_KEY_HERE',
   MPESA_NUMBER: '5813215',
   ADMIN_PASSWORD: 'V3mf54',
 };
@@ -15,7 +12,7 @@ const CONFIG = {
 const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
 export default function App() {
-  const [step, setStep] = useState('signin'); // 'signin' | 'lobbies'
+  const [step, setStep] = useState('signin');
   const [playerProfile, setPlayerProfile] = useState(null);
 
   const [profileForm, setProfileForm] = useState({
@@ -67,7 +64,6 @@ export default function App() {
       setTournaments(formatted);
       if (!selectedId) setSelectedId(formatted[0].id);
     } else {
-      // Show a default starter lobby so the screen is never empty
       const starter = [
         {
           id: 'starter-1',
@@ -307,7 +303,6 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* ADMIN LOGIN & CONTROLS */}
         {adminOpen && (
           <div className="bg-amber-950/20 border border-amber-500/30 rounded-xl p-4 space-y-3">
             {!isAdmin ? (
@@ -363,7 +358,6 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP 1: LANDING / SIGN IN FREE SCREEN */}
         {step === 'signin' && (
           <div className="max-w-md mx-auto space-y-5">
             <div className="text-center space-y-2">
@@ -462,7 +456,6 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP 2: TOURNAMENT LOBBIES & JOIN */}
         {step === 'lobbies' && (
           <>
             {playerProfile && (
@@ -520,4 +513,12 @@ export default function App() {
                     </div>
                   </div>
                 ))}
-        
+              </div>
+            </div>
+
+            {activeT && (
+              <div className="grid md:grid-cols-12 gap-6">
+                <div className="md:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5">
+                  <h3 className="font-bold text-base mb-1">Join {activeT.title}</h3>
+                  <p className="text-xs text-slate-400 mb-4">
+                    Send <strong className=
