@@ -41,8 +41,8 @@ export default function App() {
     if (data && data.length > 0) {
       const list = data.map((t) => {
         const paid = (t.registrations || []).filter((r) => r.payment_status === 'paid').length;
-        const pool = paid * (t.entry_fee || 50);
-        return { ...t, paid_count: paid, total_pool: pool, winner_payout: Math.round(pool * 0.6), host_fee: Math.round(pool * 0.4) };
+        const pool = paid * (t.entry_fee || 20,30,40,50,100);
+        return { ...t, paid_count: paid, total_pool: pool, winner_payout: Math.round(pool * 0.7), host_fee: Math.round(pool * 0.3) };
       });
       setTournaments(list);
       if (!selectedId) setSelectedId(list[0].id);
