@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, ArrowRight, UserCheck, MessageCircle } from 'lucide-react';
+import { Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, ArrowRight, UserCheck, MessageCircle } from 'lucide-react';
 
 const CONFIG = {
   SUPABASE_URL: 'https://gpgrimeivilfxfwuniku.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_Qi9wm6onYZoVHe_vT1k33w_s-EbokgT',
-  WHATSAPP_GROUP_URL: 'https://chat.whatsapp.com/E8Qw3soiwR87zRAcwwmgMT?s=cl&p=a&iam=2',
-  LIPA_NA_MPESA_TILL: '5813215',
+  WHATSAPP_GROUP_URL: 'https://chat.whatsapp.com/LdHAYbxs6MzFmBiwLJajb7?s=cl&p=a&iam=2',
+  LOGO_URL: '/logo.png',
+  MPESA_NUMBER: '5813215',
   ADMIN_PASSWORD: 'V3mf54',
 };
 
@@ -173,8 +174,12 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-20">
         <div className="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-emerald-400" />
+          <div className="flex items-center gap-2.5">
+            <img
+              src={CONFIG.LOGO_URL}
+              alt="eFootball Logo"
+              className="h-9 w-16 object-contain rounded-md bg-blue-950 border border-slate-700"
+            />
             <div>
               <h1 className="font-bold text-base">eFootball Tournaments</h1>
               <p className="text-[11px] text-slate-400">Earn by playing eFootball • 60% Winner • 40% Host</p>
@@ -214,7 +219,15 @@ export default function App() {
         )}
 
         {step === 'signin' && (
-          <div className="max-w-md mx-auto">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="rounded-2xl overflow-hidden border border-blue-500/30 bg-blue-950 shadow-lg">
+              <img
+                src={CONFIG.LOGO_URL}
+                alt="eFootball Opening Banner"
+                className="w-full max-h-40 object-contain mx-auto bg-blue-950"
+              />
+            </div>
+
             <div className="bg-white text-slate-900 rounded-2xl p-6 shadow-xl space-y-4">
               <h2 className="text-xl font-extrabold text-center">Sign In Free</h2>
               <form onSubmit={handleSignIn} className="space-y-3">
@@ -321,5 +334,5 @@ export default function App() {
       </main>
     </div>
   );
-               }
-                                                                                                                                                        
+                                                                                     }
+             
