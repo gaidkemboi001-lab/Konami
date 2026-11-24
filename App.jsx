@@ -1,32 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords } from 'lucide-react';
+import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, ArrowRight, UserCheck } from 'lucide-react';
 
 // =========================================================
-// EDIT THESE 4 LINES WITH YOUR DETAILS BEFORE COMMITTING
+// CHECK YOUR SUPABASE ANON / PUBLISHABLE KEY BELOW
 // =========================================================
 const CONFIG = {
   SUPABASE_URL: 'https://gpgrimeivilfxfwuniku.supabase.co',
-  SUPABASE_ANON_KEY: 'esSet59hJmmC47kzXbl-aA_Rsg-UUTZ',
-  MPESA_NUMBER: '5813215',       // Your Pochi / Till / M-Pesa number
-  ADMIN_PASSWORD: 'V3mf54',    // Password to open Host Admin on the site
+  SUPABASE_ANON_KEY: 'PASTE_YOUR_REAL_SUPABASE_ANON_KEY_HERE',
+  MPESA_NUMBER: '5813215',
+  ADMIN_PASSWORD: 'V3mf54',
 };
 
 const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
 export default function App() {
+  const [step, setStep] = useState('signin'); // 'signin' | 'lobbies'
+  const [playerProfile, setPlayerProfile] = useState(null);
+
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    phone_number: '',
+    efootball_username: '',
+    squad_strength: '3150',
+    county: '',
+  });
+
   const [tournaments, setTournaments] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [roster, setRoster] = useState([]);
   const [pairs, setPairs] = useState([]);
 
-  const [form, setForm] = useState({
-    full_name: '',
-    phone_number: '',
-    efootball_username: '',
-    squad_strength: '3100',
-    mpesa_code: '',
-  });
+  const [mpesaCode, setMpesaCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -37,15 +42,20 @@ export default function App() {
   const [newMax, setNewMax] = useState('16');
 
   const fetchAll = async () => {
-    const { data: tData } = await supabase
+    const { data: tData, error } = await supabase
       .from('tournaments')
       .select('*, registrations(id, payment_status)')
       .order('id', { ascending: false });
 
-    if (tData) {
+    if (error) {
+      setMsg({ ok: false, text: `Database error: ${error.message}` });
+      return;
+    }
+
+    if (tData && tData.length > 0) {
       const formatted = tData.map((t) => {
         const paidCount = (t.registrations || []).filter((r) => r.payment_status === 'paid').length;
-        const totalPool = paidCount * t.entry_fee;
+        const totalPool = paidCount * (t.entry_fee || 50);
         return {
           ...t,
           paid_count: paidCount,
@@ -55,11 +65,34 @@ export default function App() {
         };
       });
       setTournaments(formatted);
-      if (!selectedId && formatted.length > 0) setSelectedId(formatted[0].id);
+      if (!selectedId) setSelectedId(formatted[0].id);
+    } else {
+      // Show a default starter lobby so the screen is never empty
+      const starter = [
+        {
+          id: 'starter-1',
+          title: 'Daily 50 KES Cup #1',
+          entry_fee: 50,
+          max_players: 16,
+          status: 'open',
+          paid_count: 0,
+          total_pool: 0,
+          winner_payout: 0,
+          host_fee: 0,
+          isStarter: true,
+        },
+      ];
+      setTournaments(starter);
+      setSelectedId('starter-1');
     }
   };
 
   const fetchRoster = async (tid) => {
+    if (!tid || String(tid).startsWith('starter-')) {
+      setRoster([]);
+      setPairs([]);
+      return;
+    }
     const { data } = await supabase
       .from('registrations')
       .select('*, players(*)')
@@ -70,6 +103,14 @@ export default function App() {
   };
 
   useEffect(() => {
+    const saved = localStorage.getItem('efootball_player');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setPlayerProfile(parsed);
+        setProfileForm(parsed);
+      } catch (_) {}
+    }
     fetchAll();
   }, []);
 
@@ -77,22 +118,79 @@ export default function App() {
     if (selectedId) fetchRoster(selectedId);
   }, [selectedId]);
 
-  const handleJoin = async (e) => {
+  const handleSignInNext = async (e) => {
     e.preventDefault();
-    if (!selectedId) return;
     setLoading(true);
     setMsg(null);
 
     try {
-      const cleanPhone = form.phone_number.trim();
+      const cleanPhone = profileForm.phone_number.trim();
+      const payload = {
+        full_name: profileForm.full_name.trim(),
+        phone_number: cleanPhone,
+        efootball_username: profileForm.efootball_username.trim(),
+        squad_strength: Number(profileForm.squad_strength),
+        county: profileForm.county.trim(),
+      };
+
+      const { data: player, error } = await supabase
+        .from('players')
+        .upsert(payload, { onConflict: 'phone_number' })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const activePlayer = player || payload;
+      setPlayerProfile(activePlayer);
+      localStorage.setItem('efootball_player', JSON.stringify(activePlayer));
+      setStep('lobbies');
+      fetchAll();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message || 'Could not save player details. Check your Supabase key.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ensureRealTournamentId = async () => {
+    if (selectedId && !String(selectedId).startsWith('starter-')) return selectedId;
+    const { data, error } = await supabase
+      .from('tournaments')
+      .insert({
+        title: 'Daily 50 KES Cup #1',
+        entry_fee: 50,
+        max_players: 16,
+        status: 'open',
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    setSelectedId(data.id);
+    return data.id;
+  };
+
+  const handleJoin = async (e) => {
+    e.preventDefault();
+    if (!playerProfile) {
+      setStep('signin');
+      return;
+    }
+    setLoading(true);
+    setMsg(null);
+
+    try {
+      const realTid = await ensureRealTournamentId();
+
       const { data: player, error: pErr } = await supabase
         .from('players')
         .upsert(
           {
-            full_name: form.full_name.trim(),
-            phone_number: cleanPhone,
-            efootball_username: form.efootball_username.trim(),
-            squad_strength: Number(form.squad_strength),
+            full_name: playerProfile.full_name,
+            phone_number: playerProfile.phone_number,
+            efootball_username: playerProfile.efootball_username,
+            squad_strength: Number(playerProfile.squad_strength),
+            county: playerProfile.county,
           },
           { onConflict: 'phone_number' }
         )
@@ -102,9 +200,9 @@ export default function App() {
       if (pErr) throw pErr;
 
       const { error: rErr } = await supabase.from('registrations').insert({
-        tournament_id: selectedId,
+        tournament_id: realTid,
         player_id: player.id,
-        mpesa_code: form.mpesa_code.trim().toUpperCase(),
+        mpesa_code: mpesaCode.trim().toUpperCase(),
         payment_status: 'pending',
       });
 
@@ -113,10 +211,10 @@ export default function App() {
         throw rErr;
       }
 
-      setMsg({ ok: true, text: 'Registered! Awaiting collateral host verification of your 50 KES M-Pesa code.' });
-      setForm({ ...form, mpesa_code: '' });
-      fetchAll();
-      fetchRoster(selectedId);
+      setMsg({ ok: true, text: 'Registered! Awaiting host verification of your 50 KES M-Pesa code.' });
+      setMpesaCode('');
+      await fetchAll();
+      await fetchRoster(realTid);
     } catch (err) {
       setMsg({ ok: false, text: err.message || 'Error joining tournament' });
     } finally {
@@ -131,6 +229,7 @@ export default function App() {
   };
 
   const crownWinner = async (player) => {
+    if (!player || String(selectedId).startsWith('starter-')) return;
     await supabase
       .from('tournaments')
       .update({
@@ -144,13 +243,22 @@ export default function App() {
 
   const createTournament = async () => {
     if (!newTitle.trim()) return;
-    await supabase.from('tournaments').insert({
-      title: newTitle.trim(),
-      entry_fee: 50,
-      max_players: Number(newMax),
-      status: 'open',
-    });
+    const { data, error } = await supabase
+      .from('tournaments')
+      .insert({
+        title: newTitle.trim(),
+        entry_fee: 50,
+        max_players: Number(newMax),
+        status: 'open',
+      })
+      .select()
+      .single();
+    if (error) {
+      setMsg({ ok: false, text: error.message });
+      return;
+    }
     setNewTitle('');
+    if (data?.id) setSelectedId(data.id);
     fetchAll();
   };
 
@@ -164,7 +272,7 @@ export default function App() {
     setPairs(generated);
   };
 
-  const activeT = tournaments.find((t) => t.id === selectedId);
+  const activeT = tournaments.find((t) => t.id === selectedId) || tournaments[0];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -173,18 +281,28 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Trophy className="w-6 h-6 text-emerald-400" />
             <div>
-              <h1 className="font-bold text-base sm:text-lg leading-tight">eFootball Cash Arena</h1>
-              <p className="text-[11px] text-slate-400">50 KES Entry • 60% Winner • 40% Host</p>
+              <h1 className="font-bold text-base sm:text-lg leading-tight">eFootball Tournaments</h1>
+              <p className="text-[11px] text-slate-400">Earn by playing eFootball • 60% Winner • 40% Host</p>
             </div>
           </div>
 
-          <button
-            onClick={() => setAdminOpen(!adminOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-slate-800 border border-slate-700"
-          >
-            <Lock className="w-3.5 h-3.5 text-amber-400" />
-            Host Admin
-          </button>
+          <div className="flex items-center gap-2">
+            {step === 'lobbies' && (
+              <button
+                onClick={() => setStep('signin')}
+                className="px-3 py-1.5 rounded-lg text-xs bg-slate-800 border border-slate-700"
+              >
+                Player Details
+              </button>
+            )}
+            <button
+              onClick={() => setAdminOpen(!adminOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-slate-800 border border-slate-700"
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              Admin
+            </button>
+          </div>
         </div>
       </header>
 
@@ -214,7 +332,7 @@ export default function App() {
             ) : (
               <div className="space-y-3">
                 <div className="text-xs text-amber-300 font-semibold flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4" /> Collateral Admin Unlocked — Create New Tournament
+                  <ShieldCheck className="w-4 h-4" /> Host Admin Unlocked — Create New Tournament
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <input
@@ -245,104 +363,79 @@ export default function App() {
           </div>
         )}
 
-        {/* TOURNAMENT LOBBIES */}
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
-            Select a Tournament Lobby (Join One or Many)
-          </h2>
-          <div className="grid sm:grid-cols-2 gap-3">
-            {tournaments.map((t) => (
-              <div
-                key={t.id}
-                onClick={() => setSelectedId(t.id)}
-                className={`cursor-pointer rounded-xl p-4 border transition ${
-                  selectedId === t.id
-                    ? 'bg-slate-900 border-emerald-500'
-                    : 'bg-slate-900/50 border-slate-800'
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-sm">{t.title}</h3>
-                  <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
-                    {t.status}
-                  </span>
+        {/* STEP 1: LANDING / SIGN IN FREE SCREEN */}
+        {step === 'signin' && (
+          <div className="max-w-md mx-auto space-y-5">
+            <div className="text-center space-y-2">
+              <span className="inline-block bg-amber-400 text-slate-950 text-xs font-extrabold px-3 py-1 rounded-full">
+                Earn by playing eFootball!
+              </span>
+              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5">
+                  <div className="text-[11px] font-bold text-emerald-400">DAILY</div>
+                  <div className="text-[11px] text-slate-400">50 KES</div>
+                  <div className="text-xs font-bold text-white mt-0.5">60% Pot</div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center bg-slate-950 rounded-lg p-2 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Joined</span>
-                    <strong>{t.paid_count}/{t.max_players}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Winner (60%)</span>
-                    <strong className="text-emerald-400">{t.winner_payout} KES</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Host (40%)</span>
-                    <strong>{t.host_fee} KES</strong>
-                  </div>
+                <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5">
+                  <div className="text-[11px] font-bold text-emerald-400">WEEKLY</div>
+                  <div className="text-[11px] text-slate-400">100 KES</div>
+                  <div className="text-xs font-bold text-white mt-0.5">60% Pot</div>
+                </div>
+                <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5">
+                  <div className="text-[11px] font-bold text-emerald-400">MONTHLY</div>
+                  <div className="text-[11px] text-slate-400">500 KES</div>
+                  <div className="text-xs font-bold text-white mt-0.5">60% Pot</div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* REGISTRATION + ROSTER */}
-        {activeT && (
-          <div className="grid md:grid-cols-12 gap-6">
-            {/* JOIN FORM */}
-            <div className="md:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5">
-              <h3 className="font-bold text-base mb-1">Join {activeT.title}</h3>
-              <p className="text-xs text-slate-400 mb-4">
-                Send <strong className="text-white">{activeT.entry_fee} KES</strong> via M-Pesa to{' '}
-                <strong className="text-emerald-400">{CONFIG.MPESA_NUMBER}</strong>, then fill your details below:
-              </p>
+            <div className="bg-white text-slate-900 rounded-2xl p-6 shadow-xl space-y-4">
+              <h2 className="text-xl font-extrabold text-center">Sign In Free</h2>
 
-              <form onSubmit={handleJoin} className="space-y-3">
+              <form onSubmit={handleSignInNext} className="space-y-3">
                 <input
                   required
                   type="text"
-                  placeholder="Your Full Name"
-                  value={form.full_name}
-                  onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Full Name"
+                  value={profileForm.full_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-600"
                 />
                 <input
                   required
                   type="tel"
-                  placeholder="M-Pesa Phone (e.g. 0712345678)"
-                  value={form.phone_number}
-                  onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm"
+                  placeholder="M-Pesa Number e.g. 0712345678"
+                  value={profileForm.phone_number}
+                  onChange={(e) => setProfileForm({ ...profileForm, phone_number: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-600"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    required
-                    type="text"
-                    placeholder="eFootball Username"
-                    value={form.efootball_username}
-                    onChange={(e) => setForm({ ...form, efootball_username: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    required
-                    type="number"
-                    placeholder="Squad Strength"
-                    value={form.squad_strength}
-                    onChange={(e) => setForm({ ...form, squad_strength: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
                 <input
                   required
                   type="text"
-                  placeholder="M-Pesa Code (e.g. SK94H2P10X)"
-                  value={form.mpesa_code}
-                  onChange={(e) => setForm({ ...form, mpesa_code: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm uppercase font-mono"
+                  placeholder="Username - eFootball username"
+                  value={profileForm.efootball_username}
+                  onChange={(e) => setProfileForm({ ...profileForm, efootball_username: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-600"
+                />
+                <input
+                  required
+                  type="number"
+                  placeholder="Account Strength e.g. 3150"
+                  value={profileForm.squad_strength}
+                  onChange={(e) => setProfileForm({ ...profileForm, squad_strength: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-600"
+                />
+                <input
+                  required
+                  type="text"
+                  placeholder="County"
+                  value={profileForm.county}
+                  onChange={(e) => setProfileForm({ ...profileForm, county: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-600"
                 />
 
                 {msg && (
-                  <div className={`p-2.5 rounded-lg text-xs ${msg.ok ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                  <div className={`p-2.5 rounded-lg text-xs ${msg.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                     {msg.text}
                   </div>
                 )}
@@ -350,124 +443,81 @@ export default function App() {
                 <button
                   disabled={loading}
                   type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Registering...' : 'Join Tournament (50 KES)'}
+                  {loading ? 'Saving...' : 'NEXT'} <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
-            </div>
 
-            {/* ROSTER & ESCROW */}
-            <div className="md:col-span-7 space-y-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex justify-between items-center">
-                <div>
-                  <span className="text-[11px] text-slate-400">Total Escrow Pot</span>
-                  <div className="text-xl font-extrabold">{activeT.total_pool} KES</div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-emerald-400">Champion Gets (60%)</span>
-                  <div className="text-xl font-extrabold text-emerald-400">{activeT.winner_payout} KES</div>
-                </div>
-              </div>
-
-              {activeT.winner_username && (
-                <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3 text-xs text-emerald-300">
-                  Champion: <strong>{activeT.winner_username}</strong> ({activeT.winner_phone}) — 60% Payout Disbursed
-                </div>
-              )}
-
-              <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                  <span className="text-sm font-semibold flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-emerald-400" /> Gamers in Lobby ({roster.length})
-                  </span>
-                  {isAdmin && (
-                    <button
-                      onClick={generatePairings}
-                      className="text-xs bg-amber-500 text-slate-950 font-bold px-2.5 py-1 rounded"
-                    >
-                      Pair Opponents
-                    </button>
-                  )}
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-950 text-slate-400 uppercase">
-                      <tr>
-                        <th className="px-3 py-2">Gamer</th>
-                        <th className="px-3 py-2">Squad</th>
-                        <th className="px-3 py-2">Status</th>
-                        {isAdmin && <th className="px-3 py-2">Admin</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                      {roster.map((r) => (
-                        <tr key={r.id}>
-                          <td className="px-3 py-2.5">
-                            <div className="font-semibold">{r.players?.efootball_username}</div>
-                            <div className="text-slate-500">{r.players?.full_name}</div>
-                          </td>
-                          <td className="px-3 py-2.5 font-mono text-emerald-400">{r.players?.squad_strength}</td>
-                          <td className="px-3 py-2.5">
-                            {r.payment_status === 'paid' ? (
-                              <span className="text-emerald-400 flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Paid
-                              </span>
-                            ) : (
-                              <span className="text-amber-400 flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5" /> Pending
-                              </span>
-                            )}
-                          </td>
-                          {isAdmin && (
-                            <td className="px-3 py-2.5 space-y-1">
-                              <div className="font-mono text-[10px] text-slate-300">
-                                {r.mpesa_code} • {r.players?.phone_number}
-                              </div>
-                              <div className="flex gap-1">
-                                {r.payment_status !== 'paid' && (
-                                  <button
-                                    onClick={() => verifyPayment(r.id)}
-                                    className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[11px]"
-                                  >
-                                    Verify
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => crownWinner(r.players)}
-                                  className="bg-amber-600 text-white px-2 py-0.5 rounded text-[11px]"
-                                >
-                                  Crown Winner
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {pairs.length > 0 && (
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-                  <div className="text-xs font-semibold text-amber-400 flex items-center gap-1">
-                    <Swords className="w-4 h-4" /> Generated 1v1 Matchups
-                  </div>
-                  {pairs.map(([p1, p2], idx) => (
-                    <div key={idx} className="flex justify-between bg-slate-950 px-3 py-2 rounded text-xs">
-                      <span>{p1.efootball_username} ({p1.squad_strength})</span>
-                      <span className="text-amber-400 font-bold">VS</span>
-                      <span>{p2.efootball_username} ({p2.squad_strength})</span>
-                    </div>
-                  ))}
-                </div>
+              {playerProfile && (
+                <button
+                  type="button"
+                  onClick={() => setStep('lobbies')}
+                  className="w-full text-xs text-emerald-700 font-semibold underline pt-1"
+                >
+                  Continue as {playerProfile.efootball_username} →
+                </button>
               )}
             </div>
           </div>
         )}
-      </main>
-    </div>
-  );
-}
+
+        {/* STEP 2: TOURNAMENT LOBBIES & JOIN */}
+        {step === 'lobbies' && (
+          <>
+            {playerProfile && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  <span>
+                    Signed in as <strong>{playerProfile.efootball_username}</strong> ({playerProfile.full_name}) •{' '}
+                    <span className="text-emerald-400">{playerProfile.squad_strength}</span>
+                  </span>
+                </div>
+                <button
+                  onClick={() => setStep('signin')}
+                  className="text-emerald-400 hover:underline font-medium"
+                >
+                  Edit Details
+                </button>
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
+                Select a Tournament Lobby (Join One or Many)
+              </h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {tournaments.map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => setSelectedId(t.id)}
+                    className={`cursor-pointer rounded-xl p-4 border transition ${
+                      activeT?.id === t.id
+                        ? 'bg-slate-900 border-emerald-500'
+                        : 'bg-slate-900/50 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-sm">{t.title}</h3>
+                      <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+                        {t.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center bg-slate-950 rounded-lg p-2 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Joined</span>
+                        <strong>{t.paid_count}/{t.max_players}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Winner (60%)</span>
+                        <strong className="text-emerald-400">{t.winner_payout} KES</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Host (40%)</span>
+                        <strong>{t.host_fee} KES</strong>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+        
