@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, ArrowRight, UserCheck } from 'lucide-react';
+import { Trophy, Users, ShieldCheck, Lock, CheckCircle2, Clock, Plus, Swords, ArrowRight, UserCheck, MessageCircle } from 'lucide-react';
 
 const CONFIG = {
   SUPABASE_URL: 'https://gpgrimeivilfxfwuniku.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_Qi9wm6onYZoVHe_vT1k33w_s-EbokgT',
-  MPESA_NUMBER: '5813215',
+  WHATSAPP_GROUP_URL: 'https://chat.whatsapp.com/E8Qw3soiwR87zRAcwwmgMT?s=cl&p=a&iam=2',
+  LIPA_NA_MPESA_TILL: '5813215',
   ADMIN_PASSWORD: 'V3mf54',
 };
 
@@ -15,7 +16,7 @@ export default function App() {
   const [step, setStep] = useState('signin');
   const [player, setPlayer] = useState(null);
   const [profile, setProfile] = useState({
-    full_name: '', phone_number: '', efootball_username: '', squad_strength: '3150', county: '',
+    full_name: '', phone_number: '', efootball_username: '', squad_strength: '3150',
   });
   const [tournaments, setTournaments] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -28,7 +29,7 @@ export default function App() {
   const [passInput, setPassInput] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newMax, setNewMax] = useState('16');
+  const [newMax, setNewMax] = useState('4');
 
   const fetchAll = async () => {
     const { data, error } = await supabase
@@ -45,7 +46,7 @@ export default function App() {
       setTournaments(list);
       if (!selectedId) setSelectedId(list[0].id);
     } else {
-      setTournaments([{ id: 'starter-1', title: 'Daily 50 KES Cup #1', entry_fee: 50, max_players: 16, status: 'open', paid_count: 0, total_pool: 0, winner_payout: 0, host_fee: 0 }]);
+      setTournaments([{ id: 'starter-1', title: 'Daily 50 KES Cup #1', entry_fee: 50, max_players: 4, status: 'open', paid_count: 0, total_pool: 0, winner_payout: 0, host_fee: 0 }]);
       setSelectedId('starter-1');
     }
   };
@@ -63,7 +64,12 @@ export default function App() {
       try {
         const p = JSON.parse(saved);
         setPlayer(p);
-        setProfile(p);
+        setProfile({
+          full_name: p.full_name || '',
+          phone_number: p.phone_number || '',
+          efootball_username: p.efootball_username || '',
+          squad_strength: String(p.squad_strength || '3150'),
+        });
       } catch (_) {}
     }
     fetchAll();
@@ -83,7 +89,6 @@ export default function App() {
         phone_number: profile.phone_number.trim(),
         efootball_username: profile.efootball_username.trim(),
         squad_strength: Number(profile.squad_strength),
-        county: profile.county.trim(),
       };
       const { data, error } = await supabase.from('players').upsert(row, { onConflict: 'phone_number' }).select().single();
       if (error) throw error;
@@ -107,12 +112,18 @@ export default function App() {
     try {
       let tid = selectedId;
       if (!tid || String(tid).startsWith('starter-')) {
-        const { data: created, error: cErr } = await supabase.from('tournaments').insert({ title: 'Daily 50 KES Cup #1', entry_fee: 50, max_players: 16, status: 'open' }).select().single();
+        const { data: created, error: cErr } = await supabase.from('tournaments').insert({ title: 'Daily 50 KES Cup #1', entry_fee: 50, max_players: 4, status: 'open' }).select().single();
         if (cErr) throw cErr;
         tid = created.id;
         setSelectedId(tid);
       }
-      const { data: pData, error: pErr } = await supabase.from('players').upsert(player, { onConflict: 'phone_number' }).select().single();
+      const cleanPlayer = {
+        full_name: player.full_name,
+        phone_number: player.phone_number,
+        efootball_username: player.efootball_username,
+        squad_strength: Number(player.squad_strength),
+      };
+      const { data: pData, error: pErr } = await supabase.from('players').upsert(cleanPlayer, { onConflict: 'phone_number' }).select().single();
       if (pErr) throw pErr;
       const { error: rErr } = await supabase.from('registrations').insert({ tournament_id: tid, player_id: pData.id, mpesa_code: mpesaCode.trim().toUpperCase(), payment_status: 'pending' });
       if (rErr) throw new Error(rErr.code === '23505' ? 'You already joined this lobby!' : rErr.message);
@@ -191,7 +202,10 @@ export default function App() {
                 <span className="text-xs text-amber-300 font-semibold flex items-center gap-1 w-full"><ShieldCheck className="w-4 h-4" /> Host Admin Unlocked</span>
                 <input type="text" placeholder="New Tournament Name" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="flex-1 min-w-[180px] bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
                 <select value={newMax} onChange={(e) => setNewMax(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm">
-                  <option value="8">8 Players</option><option value="16">16 Players</option><option value="32">32 Players</option>
+                  <option value="2">2 Players (Friendly)</option>
+                  <option value="4">4 Players</option>
+                  <option value="6">6 Players</option>
+                  <option value="8">8 Players</option>
                 </select>
                 <button onClick={createTournament} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1"><Plus className="w-4 h-4" /> Create</button>
               </div>
@@ -200,15 +214,7 @@ export default function App() {
         )}
 
         {step === 'signin' && (
-          <div className="max-w-md mx-auto space-y-5">
-            <div className="text-center space-y-2">
-              <span className="inline-block bg-amber-400 text-slate-950 text-xs font-extrabold px-3 py-1 rounded-full">Earn by playing eFootball!</span>
-              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5"><div className="text-[11px] font-bold text-emerald-400">DAILY</div><div className="text-[11px] text-slate-400">50 KES</div><div className="text-xs font-bold mt-0.5">60% Pot</div></div>
-                <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5"><div className="text-[11px] font-bold text-emerald-400">WEEKLY</div><div className="text-[11px] text-slate-400">100 KES</div><div className="text-xs font-bold mt-0.5">60% Pot</div></div>
-                <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5"><div className="text-[11px] font-bold text-emerald-400">MONTHLY</div><div className="text-[11px] text-slate-400">500 KES</div><div className="text-xs font-bold mt-0.5">60% Pot</div></div>
-              </div>
-            </div>
+          <div className="max-w-md mx-auto">
             <div className="bg-white text-slate-900 rounded-2xl p-6 shadow-xl space-y-4">
               <h2 className="text-xl font-extrabold text-center">Sign In Free</h2>
               <form onSubmit={handleSignIn} className="space-y-3">
@@ -216,7 +222,16 @@ export default function App() {
                 <input required type="tel" placeholder="M-Pesa Number e.g. 0712345678" value={profile.phone_number} onChange={(e) => setProfile({ ...profile, phone_number: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
                 <input required type="text" placeholder="Username - eFootball username" value={profile.efootball_username} onChange={(e) => setProfile({ ...profile, efootball_username: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
                 <input required type="number" placeholder="Account Strength e.g. 3150" value={profile.squad_strength} onChange={(e) => setProfile({ ...profile, squad_strength: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
-                <input required type="text" placeholder="County" value={profile.county} onChange={(e) => setProfile({ ...profile, county: e.target.value })} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm" />
+
+                <a
+                  href={CONFIG.WHATSAPP_GROUP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold py-2.5 px-3.5 rounded-lg text-sm flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" /> Join eFootball WhatsApp Group
+                </a>
+
                 {msg && <div className={`p-2.5 rounded-lg text-xs ${msg.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{msg.text}</div>}
                 <button disabled={loading} type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm flex items-center justify-center gap-2">
                   {loading ? 'Saving...' : 'NEXT'} <ArrowRight className="w-4 h-4" />
@@ -306,5 +321,5 @@ export default function App() {
       </main>
     </div>
   );
-    }
-                  
+               }
+                                                                                                                                                        
